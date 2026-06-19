@@ -10,6 +10,21 @@ RUN_AT = os.getenv("RUN_AT", "09:00")            # HH:MM local, before London op
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Bucharest")
 TEST_ON_START = os.getenv("TEST_ON_START", "true").lower() == "true"
 
+# --- Backtest ---
+RUN_BACKTEST = os.getenv("RUN_BACKTEST", "false").lower() == "true"
+CUTOFF_HOUR = int(os.getenv("CUTOFF_HOUR", "10"))   # HOD/LOD built before this hour
+
+
+def _to_min(s):
+    hh, mm = s.split(":")
+    return int(hh) * 60 + int(mm)
+
+
+# Trading window: new entries only between CUTOFF_HOUR and ENTRY_CUTOFF;
+# an open trade may run until CLOSE_AT, then it's closed at market.
+ENTRY_CUTOFF_MIN = _to_min(os.getenv("ENTRY_CUTOFF", "17:00"))
+CLOSE_MIN = _to_min(os.getenv("CLOSE_AT", "22:00"))
+
 TZ = ZoneInfo(TIMEZONE)
 
 # --- Instruments: friendly name -> Yahoo Finance symbol ---

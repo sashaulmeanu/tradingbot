@@ -103,6 +103,31 @@ In `range` iti zice direct sa stai pe maini.
 
 ---
 
+## Backtest (model HOD/LOD sweep)
+
+Testează strategia ta pe ultimele ~60 zile de 5M, fără terminal:
+
+1. În Railway → Variables, pune `RUN_BACKTEST` = `true`.
+2. Redeploy. La pornire rulează backtest-ul pe GBPUSD/UK100/DAX și-ți trimite
+   un **card cu statistici** în Telegram (trades, win rate, expectancy în R,
+   total R, max losing streak), apoi botul continuă normal.
+3. După ce vezi rezultatele, pune `RUN_BACKTEST` înapoi pe `false`.
+
+Reguli codificate: HOD/LOD până la ora `CUTOFF_HOUR` (default 10:00) → sweep →
+MSS + FVG → entry pe pullback în FVG → stop dincolo de sweep → target 2R →
+max 1 trade/zi. Fereastra de entry: `CUTOFF_HOUR` → `ENTRY_CUTOFF` (default 17:00);
+un trade intrat poate rula până la `CLOSE_AT` (default 22:00), apoi e închis la market.
+
+Env vars opționale pentru backtest: `CUTOFF_HOUR` (`10`), `ENTRY_CUTOFF` (`17:00`),
+`CLOSE_AT` (`22:00`).
+
+Note: primul run e **raw, fără filtru de știri** (conservator — filtrul doar
+scoate loseri din jurul știrilor, deci cifrele filtrate ies ≥). Fereastra e
+~60 zile (limita yfinance pe 5M); pentru sample-ul complet de 150–200 trade-uri
+trecem pe dukascopy.
+
+---
+
 ## Cand vrei v2
 
 - **Feed de broker** (MT5 demo gratis) pentru preturi fix ca la tine.
