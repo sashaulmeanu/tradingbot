@@ -7,8 +7,9 @@ whose fill time is within +/-15 min of an event are dropped. With no events
 supplied it runs RAW (conservative) — the news filter only ever removes
 losers around releases, so your filtered numbers will be >= these.
 """
-from config import INSTRUMENTS, ENTRY_CUTOFF_MIN, CLOSE_MIN
-from data import get_5m
+from config import (INSTRUMENTS, ENTRY_CUTOFF_MIN, CLOSE_MIN,
+                    DATA_SOURCE, DUKAS_WEEKS)
+from data import get_5m, get_5m_dukascopy
 from backtest_engine import find_day_setup, simulate
 
 RISK_PCT = 0.5          # % risked per trade
@@ -24,8 +25,14 @@ def _blocked_by_news(ts, events):
     return False
 
 
-def backtest_symbol(symbol, events=None, cutoff_hour=10):
-    df = get_5m(symbol)
+def _load(name, symbol):
+    if DATA_SOURCE == "dukascopy":
+        return get_5m_dukascopy(name, weeks=DUKAS_WEEKS)
+    return get_5m(symbol)
+
+
+def backtest_symbol(name, symbol, events=None, cutoff_hour=10):
+    df = _load(name, symbol)
     if df is None or df.empty:
         return None
     trades = []
@@ -78,12 +85,13 @@ def _fmt(s):
 
 
 def run_backtest(events=None, cutoff_hour=10):
-    lines = ["\U0001F9EA Backtest — model HOD/LOD sweep (5M, ~60 zile)",
-             "fereastra entry 10:00–17:00, hold pana la 22:00", ""]
+    src = "dukascopy ~%dw" % DUKAS_WEEKS if DATA_SOURCE == "dukascopy" else "yfinance ~60z"
+    lines = [f"\U0001F9EA Backtest — HOD/LOD sweep (5M, {src})",
+             "entry 10:00–17:00, hold pana la 22:00, stop la wick sweep", ""]
     all_trades = []
     for name, symbol in INSTRUMENTS.items():
         try:
-            trades = backtest_symbol(symbol, events=events, cutoff_hour=cutoff_hour)
+            trades = backtest_symbol(name, symbol, events=events, cutoff_hour=cutoff_hour)
         except Exception as ex:
             lines.append(f"{name}: eroare ({ex})")
             lines.append("")

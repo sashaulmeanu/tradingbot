@@ -25,6 +25,11 @@ def _to_min(s):
 ENTRY_CUTOFF_MIN = _to_min(os.getenv("ENTRY_CUTOFF", "17:00"))
 CLOSE_MIN = _to_min(os.getenv("CLOSE_AT", "22:00"))
 
+# Data source for backtest: "yfinance" (~60d, FX only useful) or
+# "dukascopy" (months of history incl. indices). Dukascopy is slower to fetch.
+DATA_SOURCE = os.getenv("DATA_SOURCE", "yfinance").lower()
+DUKAS_WEEKS = int(os.getenv("DUKAS_WEEKS", "16"))
+
 TZ = ZoneInfo(TIMEZONE)
 
 # --- Instruments: friendly name -> Yahoo Finance symbol ---

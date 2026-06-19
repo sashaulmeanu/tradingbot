@@ -45,7 +45,7 @@ def _build_long(day, s, level, swings):
         return None
     fvg = fvgs[-1]
     entry = fvg["top"]
-    stop = float(min(l[s:m + 1]))
+    stop = float(l[s])                      # tight: just the sweep wick low
     if entry - stop <= 0:
         return None
     target = entry + 2.0 * (entry - stop)
@@ -74,7 +74,7 @@ def _build_short(day, s, level, swings):
         return None
     fvg = fvgs[-1]
     entry = fvg["bottom"]
-    stop = float(max(h[s:m + 1]))
+    stop = float(h[s])                      # tight: just the sweep wick high
     if stop - entry <= 0:
         return None
     target = entry - 2.0 * (stop - entry)

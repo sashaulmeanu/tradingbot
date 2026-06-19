@@ -119,7 +119,13 @@ max 1 trade/zi. Fereastra de entry: `CUTOFF_HOUR` → `ENTRY_CUTOFF` (default 17
 un trade intrat poate rula până la `CLOSE_AT` (default 22:00), apoi e închis la market.
 
 Env vars opționale pentru backtest: `CUTOFF_HOUR` (`10`), `ENTRY_CUTOFF` (`17:00`),
-`CLOSE_AT` (`22:00`).
+`CLOSE_AT` (`22:00`), `DATA_SOURCE` (`yfinance` | `dukascopy`), `DUKAS_WEEKS` (`16`).
+
+**Backtest pe sample complet (dukascopy):** pune `DATA_SOURCE` = `dukascopy` +
+`RUN_BACKTEST` = `true`, Redeploy. Trage luni de istoric 5M pe GBPUSD + UK100 +
+DAX (CFD-uri, deci au date înainte de 10:00 — spre deosebire de indicele cash de
+pe Yahoo). Mărești fereastra cu `DUKAS_WEEKS` (ex. `26` sau `40`). Prima rulare
+poate dura câteva minute (trage mult istoric). După, pune ambele înapoi pe default.
 
 Note: primul run e **raw, fără filtru de știri** (conservator — filtrul doar
 scoate loseri din jurul știrilor, deci cifrele filtrate ies ≥). Fereastra e
