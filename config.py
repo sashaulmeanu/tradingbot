@@ -30,6 +30,16 @@ CLOSE_MIN = _to_min(os.getenv("CLOSE_AT", "22:00"))
 DATA_SOURCE = os.getenv("DATA_SOURCE", "yfinance").lower()
 DUKAS_WEEKS = int(os.getenv("DUKAS_WEEKS", "16"))
 
+# Realistic round-trip cost per trade, in PRICE units (spread + commission +
+# slippage). Set to match your broker. Converted to R per trade using each
+# trade's own stop distance, then subtracted from the result.
+APPLY_COSTS = os.getenv("APPLY_COSTS", "true").lower() == "true"
+COST = {
+    "GBPUSD": float(os.getenv("COST_GBPUSD", "0.00010")),   # ~1 pip
+    "UK100": float(os.getenv("COST_UK100", "1.5")),          # ~1.5 index points
+    "DAX": float(os.getenv("COST_DAX", "2.0")),              # ~2 index points
+}
+
 TZ = ZoneInfo(TIMEZONE)
 
 # --- Instruments: friendly name -> Yahoo Finance symbol ---

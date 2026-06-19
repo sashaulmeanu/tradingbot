@@ -49,7 +49,8 @@ def backtest_symbol(name, symbol, events=None, cutoff_hour=10):
             continue
         if _blocked_by_news(fill_t, events):
             continue
-        trades.append({"date": str(day), "dir": setup["dir"], "R": R})
+        trades.append({"date": str(day), "dir": setup["dir"], "R": R,
+                       "risk": abs(setup["entry"] - setup["stop"])})
     return trades
 
 
@@ -117,27 +118,57 @@ def _build_report(per_instrument, src):
     return "\n".join(lines)
 
 
+def _apply_costs(per_instrument):
+    """Return a cost-adjusted copy: net R = gross R - cost/stop_distance."""
+    from config import COST
+    out = {}
+    for name, trades in per_instrument.items():
+        cost = COST.get(name, 0.0)
+        adj = []
+        for t in (trades or []):
+            risk = t.get("risk", 0.0)
+            cost_r = (cost / risk) if risk > 0 else 0.0
+            nt = dict(t)
+            nt["R"] = t["R"] - cost_r
+            adj.append(nt)
+        out[name] = adj
+    return out
+
+
 def run_backtest(events=None, cutoff_hour=10):
     from notify import send, send_photo
-    from analytics import equity_png
+    from analytics import equity_png, analyze
+    from config import APPLY_COSTS, COST
 
     src = "dukascopy ~%dw" % DUKAS_WEEKS if DATA_SOURCE == "dukascopy" else "yfinance ~60z"
-    per_instrument = {}
+    gross = {}
     for name, symbol in INSTRUMENTS.items():
         try:
-            per_instrument[name] = backtest_symbol(name, symbol, events=events,
-                                                   cutoff_hour=cutoff_hour) or []
+            gross[name] = backtest_symbol(name, symbol, events=events,
+                                          cutoff_hour=cutoff_hour) or []
         except Exception as ex:
             print(f"{name} backtest error:", ex)
-            per_instrument[name] = []
+            gross[name] = []
+
+    per_instrument = _apply_costs(gross) if APPLY_COSTS else gross
 
     report = _build_report(per_instrument, src)
-    send(report)
 
+    if APPLY_COSTS:
+        g = sum((gross[n] for n in gross), [])
+        nallt = sum((per_instrument[n] for n in per_instrument), [])
+        ge = analyze(g).get("expectancy", 0.0)
+        ne = analyze(nallt).get("expectancy", 0.0)
+        cost_line = (f"\nCOSTURI aplicate: GBPUSD {COST['GBPUSD']}, "
+                     f"UK100 {COST['UK100']}, DAX {COST['DAX']} (round-trip)\n"
+                     f"expectancy gross {ge:+.3f}R -> net {ne:+.3f}R")
+        report = report.replace("raw, fara filtru stiri",
+                                "NET de costuri, fara filtru stiri") + cost_line
+
+    send(report)
     try:
         path = equity_png(per_instrument, "/tmp/equity.png")
-        send_photo(path, caption="Equity curve (R cumulat)")
+        send_photo(path, caption="Equity curve (R cumulat, net de costuri)")
     except Exception as ex:
         print("equity chart failed:", ex)
-
     return report
