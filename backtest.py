@@ -53,62 +53,91 @@ def backtest_symbol(name, symbol, events=None, cutoff_hour=10):
     return trades
 
 
-def stats(trades):
-    n = len(trades)
-    if n == 0:
-        return {"n": 0}
-    wins = [t for t in trades if t["R"] > 0]
-    total_r = sum(t["R"] for t in trades)
-    mcl = cur = 0
-    for t in trades:
-        cur = cur + 1 if t["R"] < 0 else 0
-        mcl = max(mcl, cur)
-    return {
-        "n": n,
-        "wins": len(wins),
-        "losses": n - len(wins),
-        "wr": 100.0 * len(wins) / n,
-        "total_r": total_r,
-        "exp": total_r / n,
-        "mcl": mcl,
-        "pnl_pct": total_r * RISK_PCT,
-    }
+def _block(name, a):
+    if a.get("n", 0) == 0:
+        return f"{name}: niciun trade"
+    pf = "inf" if a["profit_factor"] == float("inf") else f"{a['profit_factor']:.2f}"
+    return (f"{name}: {a['n']} trades | WR {a['wr']:.0f}% | exp {a['expectancy']:+.2f}R | PF {pf}\n"
+            f"  avgW {a['avg_win']:+.2f}R / avgL {a['avg_loss']:+.2f}R | RR {a['avg_rr']:.2f}\n"
+            f"  total {a['total_r']:+.0f}R ({a['pnl_pct']:+.0f}%) | maxDD {a['mdd_r']:.0f}R "
+            f"({a['mdd_pct']:.0f}%) | streak {a['mcl']}")
 
 
-def _fmt(s):
-    if s["n"] == 0:
-        return "  niciun trade in fereastra"
-    return (f"  {s['n']} trades | WR {s['wr']:.0f}% ({s['wins']}W/{s['losses']}L)\n"
-            f"  expectancy {s['exp']:+.2f}R | total {s['total_r']:+.1f}R "
-            f"({s['pnl_pct']:+.1f}% la {RISK_PCT}%/trade)\n"
-            f"  max losing streak: {s['mcl']}")
+def _build_report(per_instrument, src):
+    from analytics import analyze, by_period, monte_carlo, split_traintest
+
+    lines = [f"\U0001F9EA Backtest — HOD/LOD sweep (5M, {src})",
+             "entry 10:00–17:00, hold 22:00, stop wick | raw, fara filtru stiri", ""]
+
+    all_trades = []
+    for t in per_instrument.values():
+        all_trades += (t or [])
+
+    tot = analyze(all_trades)
+    lines.append("═══ TOTAL ═══")
+    lines.append(_block("TOTAL", tot))
+
+    if all_trades:
+        tr, te = split_traintest(all_trades, 0.7)
+        at, ae = analyze(tr), analyze(te)
+        def pf(a): return "inf" if a["profit_factor"] == float("inf") else f"{a['profit_factor']:.2f}"
+        lines.append("")
+        lines.append("Train/Test (out-of-sample, split 70/30 cronologic):")
+        lines.append(f"  TRAIN: exp {at['expectancy']:+.2f}R | PF {pf(at)} | {at['n']} tr")
+        lines.append(f"  TEST : exp {ae['expectancy']:+.2f}R | PF {pf(ae)} | {ae['n']} tr  <- contează")
+
+        mc = monte_carlo(all_trades)
+        lines.append("")
+        lines.append(f"Monte Carlo (2000 sim, resampling):")
+        lines.append(f"  {mc['pct_profitable']:.0f}% din simulari profitabile")
+        lines.append(f"  final median {mc['median_final']:+.0f}R | p5 {mc['p5_final']:+.0f}R")
+        lines.append(f"  worst-5% drawdown {mc['p95_mdd']:.0f}R")
+
+        lines.append("")
+        lines.append("Pe ani:")
+        for y, s in by_period(all_trades, lambda t: t["date"][:4]).items():
+            lines.append(f"  {y}: {s['n']:>4} tr | WR {s['wr']:.0f}% | exp {s['exp']:+.2f}R | {s['total_r']:+.0f}R")
+
+        months = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun",
+                  "Iul", "Aug", "Sep", "Oct", "Noi", "Dec"]
+        bm = by_period(all_trades, lambda t: t["date"][5:7])
+        lines.append("")
+        lines.append("Pe luni (sezonalitate, total R):")
+        seg = []
+        for mm, s in bm.items():
+            seg.append(f"{months[int(mm)-1]} {s['total_r']:+.0f}")
+        lines.append("  " + " | ".join(seg))
+
+    lines.append("")
+    lines.append("─── pe instrument ───")
+    from analytics import analyze as _an
+    for name, trades in per_instrument.items():
+        lines.append(_block(name, _an(trades or [])))
+
+    return "\n".join(lines)
 
 
 def run_backtest(events=None, cutoff_hour=10):
+    from notify import send, send_photo
+    from analytics import equity_png
+
     src = "dukascopy ~%dw" % DUKAS_WEEKS if DATA_SOURCE == "dukascopy" else "yfinance ~60z"
-    lines = [f"\U0001F9EA Backtest — HOD/LOD sweep (5M, {src})",
-             "entry 10:00–17:00, hold pana la 22:00, stop la wick sweep", ""]
-    all_trades = []
+    per_instrument = {}
     for name, symbol in INSTRUMENTS.items():
         try:
-            trades = backtest_symbol(name, symbol, events=events, cutoff_hour=cutoff_hour)
+            per_instrument[name] = backtest_symbol(name, symbol, events=events,
+                                                   cutoff_hour=cutoff_hour) or []
         except Exception as ex:
-            lines.append(f"{name}: eroare ({ex})")
-            lines.append("")
-            continue
-        if trades is None:
-            lines.append(f"{name}: date indisponibile")
-            lines.append("")
-            continue
-        all_trades += trades
-        lines.append(f"{name}")
-        lines.append(_fmt(stats(trades)))
-        lines.append("")
+            print(f"{name} backtest error:", ex)
+            per_instrument[name] = []
 
-    lines.append("———")
-    lines.append("TOTAL (toate instrumentele)")
-    lines.append(_fmt(stats(all_trades)))
-    if not events:
-        lines.append("")
-        lines.append("(raw, fara filtru de stiri — cifrele filtrate vor fi >= astea)")
-    return "\n".join(lines)
+    report = _build_report(per_instrument, src)
+    send(report)
+
+    try:
+        path = equity_png(per_instrument, "/tmp/equity.png")
+        send_photo(path, caption="Equity curve (R cumulat)")
+    except Exception as ex:
+        print("equity chart failed:", ex)
+
+    return report

@@ -32,7 +32,7 @@ def main():
         print("RUN_BACKTEST=true -> running backtest...")
         try:
             from backtest import run_backtest
-            send(run_backtest(cutoff_hour=CUTOFF_HOUR))
+            run_backtest(cutoff_hour=CUTOFF_HOUR)
         except Exception as ex:
             print("Backtest failed:", ex)
 
